@@ -1,22 +1,13 @@
-import { DrawerActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 
 export default function Index() {
   const navigation = useNavigation();
 
   return (
     <View className="flex-1 bg-F5F4F4 relative items-center">
-      <TouchableOpacity
-        className="absolute top-14 left-5 z-50"
-        onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-      >
-        <Icon name="menu" size={30} color="#fff" />
-      </TouchableOpacity>
 
       <View className="bg-[#D32F2F] w-full h-40 absolute top-10 left-0" />
-
-
       <View
         className="absolute left-15 w-64 h-24 bg-white rounded-xl shadow-md"
         style={{ top: 134 }}

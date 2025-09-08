@@ -11,5 +11,9 @@ export default function RootLayout() {
       name="available-parking/[id]"
       options={{ headerShown: false }}
     />
+    <Stack.Screen
+      name="components/[Hamburger-menu]"
+      options={{ headerShown: false }}
+    />
   </Stack>;
 }
