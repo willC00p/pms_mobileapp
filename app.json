@@ -14,7 +14,8 @@
         "foregroundImage": "./assets/images/bulsu-logo.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.wayne081.PMSMobileApp"
     },
     "web": {
       "bundler": "metro",

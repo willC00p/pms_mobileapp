@@ -116,9 +116,9 @@ export default function HamburgerMenu() {
           {/* Log-out */}
                     <TouchableOpacity
             onPress={() => {
-              // Add logout logic here
               setMenuVisible(false);
-            }} 
+              router.push({ pathname: '/login/login' } as any);
+            }}
             style={{
               position: "absolute",
               bottom: 30,

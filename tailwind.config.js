@@ -6,7 +6,10 @@ module.exports = {
   ],
   presets: [require('nativewind/preset')],
   theme: {
-    extend: {},
+    extend: {colors: {
+        bsu: '#D32F2F', // or whatever red you want
+      },
+},
   },
   plugins: [],
 };
