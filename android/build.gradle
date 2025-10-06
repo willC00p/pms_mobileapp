@@ -1,5 +1,42 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Provide default Android SDK / build values expected by app/build.gradle
+ext {
+    compileSdkVersion = 35
+    targetSdkVersion = 35
+    minSdkVersion = 24
+    buildToolsVersion = "35.0.0"
+    ndkVersion = "27.1.12297006"
+  // Let Expo modules use their built-in default config when present
+  expoProvidesDefaultConfig = false
+}
+
+// Compatibility: expose a 'classifier' property on Jar tasks so older build scripts
+// that set `classifier = 'something'` continue to work with newer Gradle which
+// uses 'archiveClassifier'. We add get/set methods on the Jar metaClass early so
+// they exist when dependent modules configure their Jar tasks.
+try {
+  def JarClass = org.gradle.api.tasks.bundling.Jar
+  if (!JarClass.metaClass.respondsTo(JarClass, 'setClassifier')) {
+    JarClass.metaClass.getClassifier = { ->
+      try {
+        return delegate.archiveClassifier.isPresent() ? delegate.archiveClassifier.get() : (delegate.extensions.extraProperties.has('classifier') ? delegate.extensions.extraProperties.get('classifier') : null)
+      } catch (ignored) { return null }
+    }
+    JarClass.metaClass.setClassifier = { val ->
+      try {
+        if (delegate.hasProperty('archiveClassifier')) {
+          try { delegate.archiveClassifier.set(String.valueOf(val)); return }
+          catch (ignored) {}
+        }
+      } catch (ignored) {}
+      try { delegate.extensions.extraProperties.set('classifier', String.valueOf(val)) } catch (ignored) {}
+    }
+  }
+} catch (ignored) {
+  // best-effort compatibility only
+}
+
 buildscript {
   repositories {
     google()
@@ -35,3 +72,84 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+// Workaround: some older Android libraries exposed 'classifier' on Jar tasks which is no
+// longer a recognized property in newer Gradle versions. Map any such usage to
+// the supported 'archiveClassifier' property to maintain compatibility with packages
+// that haven't been updated yet (e.g. expo-image-manipulator older releases).
+// Use gradle.projectsEvaluated to avoid calling afterEvaluate() when the project is
+// already evaluated in some CI/build environments.
+gradle.projectsEvaluated {
+  subprojects.each { prj ->
+    try {
+      prj.tasks.withType(org.gradle.api.tasks.bundling.Jar).matching { true }.each { jarTask ->
+        try {
+          if (jarTask.hasProperty('classifier')) {
+            def legacy = null
+            try { legacy = jarTask.classifier } catch (ignored) {}
+            if (legacy != null) {
+              try {
+                if (jarTask.hasProperty('archiveClassifier')) {
+                  // archiveClassifier may be a Property<String>
+                  try {
+                    if (!jarTask.archiveClassifier.isPresent() || jarTask.archiveClassifier.get() == null) {
+                      jarTask.archiveClassifier.set(String.valueOf(legacy))
+                    }
+                  } catch (ignored) {
+                    // ignore if archiveClassifier can't be accessed as a Property
+                    try { jarTask.archiveClassifier = String.valueOf(legacy) } catch (ignored2) {}
+                  }
+                } else {
+                  // fallback: try setting a plain property if available
+                  try { jarTask.classifier = String.valueOf(legacy) } catch (ignored3) {}
+                }
+              } catch (ignored) {
+                // best-effort only
+              }
+            }
+          }
+        } catch (ignored) {
+          // ignore per-task failures
+        }
+      }
+    } catch (ignored) {
+      // ignore failures enumerating tasks for a subproject
+    }
+  }
+}
+
+// Ensure Kotlin compilation uses Java 17 (match Java compile target) to avoid
+// "Inconsistent JVM-target compatibility" failures when Kotlin defaults to 11.
+// This config attempts to set the kotlinOptions.jvmTarget for modules that
+// apply the Kotlin Android/JVM plugins and also applies a safe afterEvaluate
+// fallback for any remaining KotlinCompile tasks.
+subprojects {
+  // If the kotlin android plugin is applied, configure its KotlinCompile tasks
+  plugins.withId('org.jetbrains.kotlin.android') {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinCompile ->
+      kotlinCompile.kotlinOptions { jvmTarget = '17' }
+    }
+  }
+
+  // If the kotlin jvm plugin is applied, configure its KotlinCompile tasks
+  plugins.withId('org.jetbrains.kotlin.jvm') {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinCompile ->
+      kotlinCompile.kotlinOptions { jvmTarget = '17' }
+    }
+  }
+
+  // Fallback: after all projects are evaluated, ensure any KotlinCompile tasks
+  // explicitly target JVM 17. Use gradle.projectsEvaluated to avoid calling
+  // afterEvaluate() on a project that is already evaluated in CI environments.
+  gradle.projectsEvaluated {
+    subprojects.each { prj ->
+      try {
+        prj.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kc ->
+          try { kc.kotlinOptions.jvmTarget = '17' } catch (ignored) {}
+        }
+      } catch (ignored) {
+        // best-effort only
+      }
+    }
+  }
+}
