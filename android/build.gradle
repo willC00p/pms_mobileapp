@@ -49,6 +49,21 @@ buildscript {
   }
 }
 
+// Extra safety: ensure every KotlinCompile in every project targets JVM 17.
+// Some plugins apply Kotlin or configure tasks late; using allprojects inside
+// gradle.projectsEvaluated ensures we catch them after they're created.
+gradle.projectsEvaluated {
+  allprojects.each { prj ->
+    try {
+      prj.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kc ->
+        try { kc.kotlinOptions.jvmTarget = '17' } catch (ignored) {}
+      }
+    } catch (ignored) {
+      // best-effort only
+    }
+  }
+}
+
 def reactNativeAndroidDir = new File(
   providers.exec {
     workingDir(rootDir)
