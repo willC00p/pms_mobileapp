@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const contact = () => {
+const Contact = () => {
   const [searchText, setSearchText] = useState('');
 
   return (
@@ -45,4 +45,4 @@ const contact = () => {
   );
 };
 
-export default contact;
+export default Contact;

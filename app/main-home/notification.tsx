@@ -1,50 +1,55 @@
-import { AlertTriangle, Bell, MessageCircle, ParkingCircle, PhoneCall } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Bell } from 'lucide-react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React from 'react';
+import { apiFetch } from '../_lib/api';
 
 export default function Notification() {
+  const [items, setItems] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/notifications');
+      const data = res?.data || res;
+      setItems(data || []);
+    } catch (e) {
+      console.warn('Failed to load notifications', e);
+    }
+    setLoading(false);
+  }
+
+  React.useEffect(() => {
+    load();
+    const id = setInterval(load, 30_000); // poll every 30s
+    return () => clearInterval(id);
+  }, []);
+
+  const markRead = async (id:number) => {
+    try {
+  await apiFetch(`/api/notifications/${id}/mark-read`, { method: 'POST' });
+      setItems(prev => prev.map(it => it.id === id ? { ...it, read: true } : it));
+    } catch (e) {
+      Alert.alert('Error', 'Failed to mark read');
+    }
+  };
+
+  if (loading) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><ActivityIndicator size="large" /></View>;
+
   return (
     <View style={styles.wrapper}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-      </View>
-
-      {/* Notification List */}
+      <View style={styles.header}><Text style={styles.headerTitle}>Notifications</Text></View>
       <ScrollView contentContainerStyle={styles.content}>
-        <NotificationCard
-          icon={<Bell size={24} color="#D32F2F" />}
-          title="Security Updates!"
-          timestamp="Today | 09:24 AM"
-          message="We've updated our system with the latest security patches to keep your account and parking details safe."
-        />
-
-        <NotificationCard
-          icon={<AlertTriangle size={24} color="#D32F2F" />}
-          title="Urgent: Move Your Vehicle!"
-          timestamp="1 day ago | 14:43 PM"
-          message="Your vehicle is improperly parked or blocking the way. Kindly relocate it immediately."
-        />
-
-        <NotificationCard
-          icon={<PhoneCall size={24} color="#D32F2F" />}
-          title="Admin is Calling!"
-          timestamp="5 days ago | 10:29 AM"
-          message="The admin is trying to reach you regarding parking. Please answer the call."
-        />
-
-        <NotificationCard
-          icon={<MessageCircle size={24} color="#D32F2F" />}
-          title="Admin Message Received!"
-          timestamp="5 days ago | 10:25 AM"
-          message="The admin has sent you a message regarding parking. Tap to view."
-        />
-
-        <NotificationCard
-          icon={<ParkingCircle size={24} color="#D32F2F" />}
-          title="Parking Assigned!"
-          timestamp="6 days ago | 15:38 PM"
-          message="You have been assigned to Parking Space #43 Premital Hall. Please proceed to park your vehicle there."
-        />
+        {items.map(n => (
+          <TouchableOpacity key={n.id} onPress={() => markRead(n.id)} style={[styles.card, n.read ? {opacity:0.6} : {}]}>
+            <View style={styles.cardHeader}>
+              <Bell size={24} color="#D32F2F" />
+              <View style={styles.cardText}><Text style={styles.cardTitle}>{n.type || 'Notice'}</Text>
+              <Text style={styles.cardTimestamp}>{new Date(n.created_at).toLocaleString()}</Text></View>
+            </View>
+            <Text style={styles.cardMessage}>{n.message}</Text>
+          </TouchableOpacity>
+        ))}
       </ScrollView>
     </View>
   );

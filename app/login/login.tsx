@@ -114,7 +114,7 @@ export default function Index() {
 
       {/* Sign Up Link */}
       <View className="flex-row justify-center mt-6">
-        <Text className="text-sm text-gray-600 mr-1">Don't have an account?</Text>
+  <Text className="text-sm text-gray-600 mr-1">Don&apos;t have an account?</Text>
         <Link href="/login/choose-role" asChild>
           <TouchableOpacity accessibilityRole="link">
             <Text className="text-sm text-blue-600 font-semibold">Register</Text>

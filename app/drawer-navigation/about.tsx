@@ -14,7 +14,7 @@ export default function AboutUs() {
 
       {/* Description */}
       <Text style={styles.paragraph}>
-        Welcome to ParkBulsu, the smart solution for managing parking spaces efficiently. Our mobile app is designed to make parking easier, faster, and more organized for everyone. Whether you're a student, faculty member, personnel, or security staff, our app helps you find available parking spots, manage space allocation, and improve traffic flow within the area.
+  Welcome to ParkBulsu, the smart solution for managing parking spaces efficiently. Our mobile app is designed to make parking easier, faster, and more organized for everyone. Whether you&apos;re a student, faculty member, personnel, or security staff, our app helps you find available parking spots, manage space allocation, and improve traffic flow within the area.
       </Text>
 
       <Text style={styles.paragraph}>

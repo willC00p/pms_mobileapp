@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, TextInput } from 'react-native';
-import { apiFetch } from '../_lib/api';
+import { apiFetch, getRoleFromProfile, isRole } from '../_lib/api';
 
 type LayoutSummary = {
   id: number;
@@ -15,6 +15,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [layouts, setLayouts] = useState<LayoutSummary[]>([]);
   const [query, setQuery] = useState('');
+  const [debugRole, setDebugRole] = useState<string | null>(null);
+  const [debugRoleId, setDebugRoleId] = useState<number | null>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -39,6 +42,37 @@ export default function Home() {
       setLoading(false);
     }
     loadLayouts();
+
+    // load profile for debug showing which role the app sees
+    (async () => {
+      try {
+  const p = await apiFetch('/api/settings/profile');
+        const rn = getRoleFromProfile(p);
+        setDebugRole(rn);
+        // try to read role id from common fields
+        const pid = (p?.data ?? p)?.roles_id ?? (p?.data ?? p)?.role_id ?? (p?.data ?? p)?.user?.roles_id ?? (p?.data ?? p)?.user?.role?.id ?? null;
+        setDebugRoleId(pid ? Number(pid) : null);
+        // If this user is a guard, immediately navigate to the guard home
+        if (isRole(p, 'Guard') || isRole(p, 7)) {
+          router.replace('/guard/home');
+          return;
+        }
+      } catch (e: any) {
+        // Capture useful error details from apiFetch (it throws {status, body} on non-ok)
+        // and display them in the debug banner so we can diagnose why profile failed.
+        // eslint-disable-next-line no-console
+        console.error('Profile fetch error', e);
+        if (e && typeof e === 'object') {
+          const status = e.status ?? (e?.body && e.body.status) ?? null;
+          const body = e.body ?? e?.body ?? e;
+          setDebugRole(`error${status ? ` (${status})` : ''}`);
+          try { setDebugError(typeof body === 'object' ? JSON.stringify(body) : String(body)); } catch { setDebugError(String(body)); }
+          setDebugRoleId(null);
+        } else {
+          setDebugRole(String(e));
+        }
+      }
+    })();
     return () => { mounted = false; };
   }, []);
 
@@ -46,6 +80,10 @@ export default function Home() {
 
   return (
     <View className="flex-1 bg-F5F4F4 relative items-center">
+      {/* Debug banner to show the resolved role for the logged-in user */}
+      <View style={{ position: 'absolute', top: 60, left: 10, right: 10, zIndex: 40 }}>
+        <Text style={{ color: '#fff', fontWeight: '700' }}>Debug Role: {debugRole ?? 'loading...' } {debugRoleId ? `(#${debugRoleId})` : ''}</Text>
+      </View>
       <View className="bg-[#D32F2F] w-full h-40 absolute top-10 left-0" />
       <View className="absolute left-15 w-64 h-24 bg-white rounded-xl shadow-md" style={{ top: 134 }} />
 

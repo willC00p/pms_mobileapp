@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Prefer explicitly configured NEXT_PUBLIC_API_URL. When it's not set (Expo may not inject .env
 // at runtime), fall back to the host LAN IP that we verified is reachable from this machine.
-const ENV_BASE = (process.env?.NEXT_PUBLIC_API_URL as string) || 'http://172.17.162.198:8000';
+const ENV_BASE = (process.env?.NEXT_PUBLIC_API_URL as string) || 'http://192.168.1.3:8000';
 
 // Map localhost to emulator-friendly host when running on Android emulators
 let API_BASE = ENV_BASE;
@@ -98,4 +98,69 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
   }
 
   return body as T;
+}
+
+/**
+ * Extract a canonical role name from a variety of profile API response shapes.
+ * The backend sometimes returns role as `role`, `user.role`, `user.role.name`,
+ * `role_name`, or inside `userDetail`. This helper centralizes that logic.
+ */
+export function getRoleFromProfile(profile: any): string | null {
+  if (!profile) return null;
+
+  // Normalize common API wrappers where the user object is returned under `data`
+  const p = profile?.data ?? profile;
+
+  const candidates = [
+    p?.role,
+    p?.role_name,
+    p?.user?.role,
+    p?.user?.role?.name,
+    p?.user?.role_name,
+    p?.userDetail?.role,
+    p?.role?.name,
+    p?.user?.role?.name,
+  ];
+
+  for (const c of candidates) {
+    if (!c) continue;
+    if (typeof c === 'string') return c;
+    if (typeof c === 'object' && c.name) return c.name;
+  }
+
+  return null;
+}
+
+/**
+ * Returns true if the profile's role matches the provided role name (case-insensitive)
+ * or role id (number or numeric-string). Handles multiple shapes the backend may return.
+ * Example usage: isRole(profile, 'Guard') or isRole(profile, 7)
+ */
+export function isRole(profile: any, roleToMatch: string | number): boolean {
+  if (!profile) return false;
+
+  // Check name-first
+  const roleName = getRoleFromProfile(profile);
+  if (roleName && typeof roleToMatch === 'string' && roleName.toLowerCase() === roleToMatch.toLowerCase()) return true;
+
+  // Check numeric ids in common fields
+  const p = profile?.data ?? profile;
+  const candidateIds = [
+    p?.roles_id,
+    p?.role_id,
+    p?.user?.roles_id,
+    p?.user?.role_id,
+    p?.user?.role?.id,
+    p?.role?.id,
+    p?.user?.id,
+  ].filter(v => v !== undefined && v !== null);
+
+  if (typeof roleToMatch === 'number' || (typeof roleToMatch === 'string' && /^[0-9]+$/.test(String(roleToMatch)))) {
+    const matchNum = Number(roleToMatch);
+    for (const c of candidateIds) {
+      if (Number(c) === matchNum) return true;
+    }
+  }
+
+  return false;
 }

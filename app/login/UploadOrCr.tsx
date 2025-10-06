@@ -63,14 +63,23 @@ export default function UploadOrCr() {
   const appendFileToForm = async (form: FormData, fieldName: string, uri?: string | null, filename?: string, mime?: string) => {
     if (!uri) return;
     try {
-      const isNative = typeof uri === 'string' && (uri.startsWith('file://') || uri.startsWith('content://'));
-      if (Platform.OS === 'android' || isNative) {
-        (form as any).append(fieldName, { uri, name: filename || getFilenameFromUri(uri) || fieldName, type: mime || 'application/octet-stream' });
+      // Normalize URI: ensure native file URIs have file:// prefix when needed
+      let nUri = uri as string;
+      if (typeof nUri === 'string' && nUri.startsWith('/') && !nUri.startsWith('//') && !nUri.startsWith('file://')) {
+        // sometimes FileSystem returns absolute path without file://
+        nUri = 'file://' + nUri;
+      }
+      const isNativeFile = typeof nUri === 'string' && (nUri.startsWith('file://') || nUri.startsWith('content://'));
+      if (Platform.OS !== 'web' && isNativeFile) {
+        // React Native FormData expects an object with uri/name/type
+        (form as any).append(fieldName, { uri: nUri, name: filename || getFilenameFromUri(nUri) || fieldName, type: mime || 'application/octet-stream' });
         return;
       }
-      const res = await fetch(uri);
+      // Web / non-native: fetch the resource and append blob
+      const res = await fetch(nUri);
       const blob = await res.blob();
-      (form as any).append(fieldName, blob, filename || getFilenameFromUri(uri) || fieldName);
+      // append with filename
+      (form as any).append(fieldName, blob, filename || getFilenameFromUri(nUri) || fieldName);
     } catch (err) {
       console.warn('appendFileToForm fallback', err);
       try { (form as any).append(fieldName, { uri, name: filename || fieldName, type: mime || 'application/octet-stream' }); } catch (e) { console.error('appendFileToForm final fallback', e); }

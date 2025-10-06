@@ -17,6 +17,10 @@
       "edgeToEdgeEnabled": true,
       "package": "com.wayne081.PMSMobileApp"
     },
+    "ios": {
+      "bundleIdentifier": "com.wayne081.PMSMobileApp",
+      "supportsTablet": true
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -36,6 +40,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a6bf9309-63e8-42a3-aad9-2b138844d418"
+      }
     }
   }
 }

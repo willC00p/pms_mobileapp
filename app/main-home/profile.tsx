@@ -1,6 +1,51 @@
-import { Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
+import React from 'react';
+import { apiFetch } from '../_lib/api';
+import { useRouter } from 'expo-router';
 
 const Profile = () => {
+  const router = useRouter();
+  const [loading, setLoading] = React.useState(true);
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        // Prefer authenticated settings/profile endpoint
+        const res = await apiFetch('/settings/profile');
+        if (!mounted) return;
+        setUser(res);
+      } catch (err) {
+        // If auth failed, try the generic /user endpoint
+        try {
+          const u = await apiFetch('/user');
+          if (!mounted) return;
+          setUser(u);
+        } catch (e) {
+          // show a friendly error
+          Alert.alert('Profile', 'Unable to load profile. Please sign in.');
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const name = user?.name || (user?.user_detail?.firstname ? `${user.user_detail.firstname} ${user.user_detail.lastname}` : '');
+  const role = user?.role?.name || 'Student';
+  const ud = user?.userDetail || user?.user_detail || {};
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white">
+        <ActivityIndicator size="large" color="#C34C4D" />
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-[#F5F4F4]">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
@@ -14,88 +59,32 @@ const Profile = () => {
           <View className="h-auto w-full bg-F5F4F4 rounded-lg p-4 space-y-12" style={{ height: '100%' }}>
             {/* Profile Image and Info */}
             <View className="items-center space-y-3">
-              <Image
-                source={require('../../assets/images/bulsu-logo.png')}
-                style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 50,
-                  backgroundColor: '#fff',
-                }}
-              />
-              <Text className="text-black text-3xl font-bold text-center">Juancho Dela Cruz</Text>
-              <Text className="text-black text-xl text-center -mt-1">Student</Text>
+              {ud?.profile_pic ? (
+                <Image source={{ uri: ud.profile_pic }} style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff' }} />
+              ) : (
+                <Image source={require('../../assets/images/bulsu-logo.png')} style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff' }} />
+              )}
+              <Text className="text-black text-3xl font-bold text-center">{name || '—'}</Text>
+              <Text className="text-black text-xl text-center -mt-1">{role}</Text>
             </View>
 
             {/* Input Fields */}
             <View style={{ marginTop: 32 }}>
-              <TextInput
-                style={{
-                  backgroundColor: 'white',
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#C9C9C9',
-                  paddingHorizontal: 16,
-                  paddingVertical: 16,
-                  color: 'black',
-                  marginBottom: 10,
-                }}
-                value="2022189465"
-                editable={false}
-              />
-              <TextInput
-                style={{
-                  backgroundColor: 'white',
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#C9C9C9',
-                  paddingHorizontal: 16,
-                  paddingVertical: 16,
-                  color: 'black',
-                  marginBottom: 10,
-                }}
-                value="0911 143 9821"
-                editable={false}
-              />
-              <TextInput
-                style={{
-                  backgroundColor: 'white',
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#C9C9C9',
-                  paddingHorizontal: 16,
-                  paddingVertical: 16,
-                  color: 'black',
-                  marginBottom: 10,
-                }}
-                value="College of Nursing"
-                editable={false}
-              />
-              <TextInput
-                style={{
-                  backgroundColor: 'white',
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: '#C9C9C9',
-                  paddingHorizontal: 16,
-                  paddingVertical: 16,
-                  color: 'black',
-                  marginBottom: 10,
-                }}
-                value="SUV"
-                editable={false}
-              />
+              <TextInput style={inputStyle} value={ud?.student_no || ud?.id_number || ''} editable={false} />
+              <TextInput style={inputStyle} value={ud?.contact_number || user?.contact_number || ''} editable={false} />
+              <TextInput style={inputStyle} value={ud?.department || ''} editable={false} />
+              <TextInput style={inputStyle} value={user?.vehicles?.[0]?.vehicle_type || ud?.vehicle_type || ''} editable={false} />
             </View>
 
             {/* Action Buttons */}
             <View className="mt-4">
-              <TouchableOpacity className="bg-[#FFC800] rounded-lg py-3 items-center mb-4">
-                <Text className="text-white font-bold">View Vehicle</Text>
+              <TouchableOpacity className="bg-[#FFC800] rounded-lg py-3 items-center mb-4" onPress={() => router.push({ pathname: '/main-home/files' } as any)}>
+                <Text className="text-white font-bold">View Files</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="bg-[#C34C4D] rounded-lg py-3 items-center mb-4">
+              <TouchableOpacity className="bg-[#C34C4D] rounded-lg py-3 items-center mb-4" onPress={() => router.push('/info-profile/edit-profile')}>
                 <Text className="text-white font-bold">Edit Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity className="bg-[#F5F4F4] rounded-lg py-3 items-center border border-[#C34C4D]">
+              <TouchableOpacity className="bg-[#F5F4F4] rounded-lg py-3 items-center border border-[#C34C4D]" onPress={() => Alert.alert('Logout', 'Please sign out via the app menu (TODO)')}>
                 <Text className="text-[#C34C4D] font-bold">Logout</Text>
               </TouchableOpacity>
             </View>
@@ -104,6 +93,17 @@ const Profile = () => {
       </ScrollView>
     </View>
   );
+};
+
+const inputStyle = {
+  backgroundColor: 'white',
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: '#C9C9C9',
+  paddingHorizontal: 16,
+  paddingVertical: 16,
+  color: 'black',
+  marginBottom: 10,
 };
 
 export default Profile;
