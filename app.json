@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "PMS-MobileApp",
+    "slug": "PMS-MobileApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/bulsu-logo.png",
+    "scheme": "pmsmobileapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "supportsTablet": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/bulsu-logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.wayne081.PMSMobileApp"
+    },
+    "ios": {
+      "bundleIdentifier": "com.wayne081.PMSMobileApp",
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a6bf9309-63e8-42a3-aad9-2b138844d418"
+      }
+    }
+  }
+}
