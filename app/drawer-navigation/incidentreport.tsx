@@ -1,4 +1,4 @@
-import CheckBox from '@react-native-community/checkbox';
+import CheckBox from 'expo-checkbox';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import { ChevronLeft } from 'lucide-react-native';

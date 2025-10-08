@@ -1,18 +1,19 @@
 import { Link, useRouter } from "expo-router";
 import React, { useState } from 'react';
 import {
-    Image,
-    SafeAreaView,
-    StatusBar,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    ActivityIndicator,
-    Alert
+  Image,
+  SafeAreaView,
+  StatusBar,
+  Text,
+  TextInput,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert
 } from "react-native";
+import { PrimaryButton, Card, Header } from '../components/ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiFetch } from '../_lib/api';
+import { apiFetch, isRole } from '../_lib/api';
 import 'react-native-gesture-handler';
 
 export default function Index() {
@@ -36,7 +37,18 @@ export default function Index() {
       await AsyncStorage.setItem('auth_token', token);
       // optional: store user name
       if (res?.data?.name) await AsyncStorage.setItem('auth_name', res.data.name);
-      router.replace('/main-home/home');
+      // Fetch profile to determine role and redirect appropriately
+      try {
+        const profile = await apiFetch('/api/settings/profile');
+        if (isRole(profile, 'Guard') || isRole(profile, 7)) {
+          router.replace('/guard/home');
+        } else {
+          router.replace('/main-home/home');
+        }
+      } catch (e) {
+        // If profile fetch fails, fallback to main home
+        router.replace('/main-home/home');
+      }
     } catch (err: any) {
       console.error('Login failed', err);
       const msg = (err && err.body && err.body.message) ? err.body.message : (err?.message || 'Login failed');
@@ -50,25 +62,19 @@ export default function Index() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Logo + Titles */}
-      <View className="items-center mt-10">
+      <Header title="Bulacan State University" subtitle="Parking Management System" />
+      <View style={{ padding: 18, alignItems: 'center' }}>
         <Image
           source={require("../../assets/images/bulsu-logo.png")}
           className="w-32 h-32"
           resizeMode="contain"
         />
-        <Text className="mt-4 text-2xl font-bold text-black text-center">
-          Bulacan State University
-        </Text>
-        <Text className="text-lg text-gray-600 text-center">
-          Parking Management System
-        </Text>
-        <Text className="mt-2 text-sm italic text-gray-500 text-center">
-          Drive In. Park Smart. Move On.
-        </Text>
+        <Text style={{ marginTop: 12, fontSize: 18, fontWeight: '700' }}>Parking Management System</Text>
+        <Text style={{ marginTop: 6, fontSize: 12, color: '#6B7280' }}>Drive In. Park Smart. Move On.</Text>
       </View>
 
       {/* Form */}
-      <View className="mt-10 space-y-6">
+      <View style={{ paddingHorizontal: 18, marginTop: 6 }}>
         {/* Email */}
         <View>
           <Text className="text-sm text-gray-700 mb-1">Email</Text>
@@ -77,7 +83,7 @@ export default function Index() {
             placeholderTextColor="#9CA3AF"
             keyboardType="email-address"
             autoCapitalize="none"
-            className="border-b border-gray-300 pb-2 text-base text-black"
+            style={{ borderBottomWidth: 1, borderColor: '#E5E7EB', paddingBottom: 8, color: '#111827' }}
             value={email}
             onChangeText={setEmail}
           />
@@ -101,24 +107,16 @@ export default function Index() {
         </View>
 
         {/* Sign In */}
-        <View>
-          {loading ? (
-            <ActivityIndicator />
-          ) : (
-            <TouchableOpacity className="bg-bsu rounded-full py-3 items-center" onPress={handleLogin}>
-              <Text className="text-white text-base font-semibold">Sign In</Text>
-            </TouchableOpacity>
-          )}
+        <View style={{ marginTop: 18 }}>
+          {loading ? <ActivityIndicator /> : <PrimaryButton title="Sign In" onPress={handleLogin} />}
         </View>
       </View>
 
       {/* Sign Up Link */}
-      <View className="flex-row justify-center mt-6">
-  <Text className="text-sm text-gray-600 mr-1">Don&apos;t have an account?</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 18 }}>
+        <Text style={{ color: '#6B7280', marginRight: 8 }}>Don't have an account?</Text>
         <Link href="/login/choose-role" asChild>
-          <TouchableOpacity accessibilityRole="link">
-            <Text className="text-sm text-blue-600 font-semibold">Register</Text>
-          </TouchableOpacity>
+          <PrimaryButton title="Register" onPress={() => {}} style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#C34C4D' }} />
         </Link>
       </View>
     </SafeAreaView>

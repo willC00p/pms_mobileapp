@@ -1,4 +1,4 @@
-import "./app/globals.css";
+ "./app/globals.css";
 
 // --- DEBUG: send console logs / uncaught JS errors to webhook.site for phone-only debugging
 // Enable by setting DEBUG_LOG_WEBHOOK=true in your build environment (development only).

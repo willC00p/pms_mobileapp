@@ -71,9 +71,22 @@ export default function UploadOrCr() {
       }
       const isNativeFile = typeof nUri === 'string' && (nUri.startsWith('file://') || nUri.startsWith('content://'));
       if (Platform.OS !== 'web' && isNativeFile) {
-        // React Native FormData expects an object with uri/name/type
-        (form as any).append(fieldName, { uri: nUri, name: filename || getFilenameFromUri(nUri) || fieldName, type: mime || 'application/octet-stream' });
-        return;
+        // If the file:// path exists in FS, append as a file object expected by RN fetch
+        try {
+          // Use the normalized URI when checking for file existence. Do not strip file:// prefix.
+          const info = await FileSystem.getInfoAsync(nUri);
+          if (info && info.exists) {
+            (form as any).append(fieldName, { uri: nUri, name: filename || getFilenameFromUri(nUri) || fieldName, type: mime || 'application/octet-stream' });
+            return;
+          } else {
+            // File doesn't exist at this path; fall through to attempt fetch by uri or send fallback field
+            console.warn('appendFileToForm: native file not found at', nUri, 'info=', info);
+          }
+        } catch (fsErr) {
+          console.warn('appendFileToForm: checking local file existence failed', fsErr);
+        }
+        // If we couldn't append as a native file, still include the client URI string so the server debug sees what client attempted to send
+        try { (form as any).append(fieldName + '_client_uri', String(uri)); } catch (e) { /* ignore */ }
       }
       // Web / non-native: fetch the resource and append blob
       const res = await fetch(nUri);
@@ -178,7 +191,9 @@ export default function UploadOrCr() {
       form.append('email', (store as any).email || '');
       form.append('password', (store as any).password || '');
       form.append('c_password', (store as any).password || '');
-      form.append('student_no', (store as any).student_no || '');
+  form.append('student_no', (store as any).student_no || '');
+  // include selected role id (signup store stores role as numeric string now)
+  if ((store as any).role) form.append('role_id', String((store as any).role));
   // include extra profile/vehicle fields
   form.append('department', (store as any).department || '');
   form.append('contact_number', (store as any).contact_number || '');
@@ -378,6 +393,27 @@ export default function UploadOrCr() {
       // also include second-hand flag if set (in case deed uploaded separately)
       if (isSecondHand) {
         form.append('is_second_hand', '1');
+      }
+
+      // include role-specific user_detail fields
+      const roleId = Number((finalStore as any).role || 0);
+      // map fields per role similar to admin create payload
+      if (roleId === 3) {
+        // student
+        form.append('user_detail[student_no]', (finalStore as any).student_no || '');
+        form.append('user_detail[course]', (finalStore as any).course || '');
+        form.append('user_detail[yr_section]', (finalStore as any).yr_section || '');
+      } else if (roleId === 4) {
+        // faculty
+        form.append('user_detail[faculty_id]', (finalStore as any).faculty_id || '');
+        form.append('user_detail[position]', (finalStore as any).position || '');
+      } else if (roleId === 5) {
+        // employee
+        form.append('user_detail[employee_id]', (finalStore as any).employee_id || '');
+        form.append('user_detail[position]', (finalStore as any).position || '');
+      } else if (roleId === 7) {
+        // guard minimal fields
+        form.append('user_detail[position]', (finalStore as any).position || 'Security Guard');
       }
 
       // endpoint

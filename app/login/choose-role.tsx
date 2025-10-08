@@ -1,6 +1,7 @@
-import { Link, useRouter } from 'expo-router';
-import { SafeAreaView, StatusBar, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView, StatusBar, Text, View, TouchableOpacity } from 'react-native';
 import { setSignup } from '../_lib/signupStore';
+import { PrimaryButton, Card, Header } from '../components/ui';
 
 export default function ChooseRole() {
   const router = useRouter();
@@ -13,20 +14,20 @@ export default function ChooseRole() {
         <Text className="text-sm text-gray-600 mt-2">Choose your role to continue</Text>
       </View>
 
-      <View className="mt-8 space-y-4">
-        <TouchableOpacity
-          className="bg-bsu rounded-full py-3 items-center"
-          onPress={() => { setSignup({ role: 'student' }); router.push({ pathname: '/login/BasicCredentials' } as any); }}
-        >
-          <Text className="text-white text-base font-semibold">Student</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          className="bg-gray-800 rounded-full py-3 items-center"
-          onPress={() => { setSignup({ role: 'staff' }); router.push({ pathname: '/login/BasicCredentials' } as any); }}
-        >
-          <Text className="text-white text-base font-semibold">Staff / Admin</Text>
-        </TouchableOpacity>
+      <Header title="Register an account" subtitle="Choose your role to continue" />
+      <View style={{ padding: 16 }}>
+        <Card>
+          <PrimaryButton title="Student" onPress={() => { setSignup({ role: '3' }); router.push({ pathname: '/login/BasicCredentials' } as any); }} />
+        </Card>
+        <Card>
+          <PrimaryButton title="Faculty" onPress={() => { setSignup({ role: '4' }); router.push({ pathname: '/login/BasicCredentials' } as any); }} />
+        </Card>
+        <Card>
+          <PrimaryButton title="Employee" onPress={() => { setSignup({ role: '5' }); router.push({ pathname: '/login/BasicCredentials' } as any); }} />
+        </Card>
+        <Card>
+          <PrimaryButton title="Security Guard" onPress={() => { setSignup({ role: '7' }); router.push({ pathname: '/login/BasicCredentials' } as any); }} />
+        </Card>
 
         <TouchableOpacity className="mt-6" onPress={() => router.push({ pathname: '/login/login' } as any)}>
           <Text className="text-sm text-blue-600 text-center">Back to Sign In</Text>

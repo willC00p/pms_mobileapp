@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { Bell, Info, Menu, Settings, TriangleAlert } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -15,6 +15,7 @@ import {
 const { width } = Dimensions.get("window");
 
 export default function HamburgerMenu() {
+  const router = useRouter();
   const [menuVisible, setMenuVisible] = useState(false);
   const slideAnimation = useRef(new Animated.Value(-width)).current;
 

@@ -1,4 +1,4 @@
-import CheckBox from '@react-native-community/checkbox';
+import Checkbox from 'expo-checkbox';
 import { ChevronLeft } from 'lucide-react-native';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -46,7 +46,7 @@ export default function FeedbackForm() {
 
       {/* Privacy Policy Checkbox */}
       <View style={styles.checkboxContainer}>
-        <CheckBox value={acceptedPolicy} onValueChange={setAcceptedPolicy} />
+        <Checkbox value={acceptedPolicy} onValueChange={setAcceptedPolicy} />
         <Text style={styles.checkboxLabel}>I have read and accept the Privacy Policy.</Text>
       </View>
 

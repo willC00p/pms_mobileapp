@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { View, Text, ActivityIndicator, ScrollView, ImageBackground, StyleSheet, Dimensions, Animated, Pressable } from 'react-native';
+import { View, Text, ActivityIndicator, ScrollView, ImageBackground, StyleSheet, Dimensions, Animated, Pressable, Modal, TextInput, Button } from 'react-native';
 import { PanGestureHandler, PinchGestureHandler, State, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useLocalSearchParams } from 'expo-router';
 import { apiFetch } from '../_lib/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenW, height: screenH } = Dimensions.get('window');
 
@@ -31,12 +32,18 @@ const ParkingAssignmentPage = () => {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [canvasSize, setCanvasSize] = useState({ w: 800, h: 600 });
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [highlightSlotId, setHighlightSlotId] = useState<string | null>(null);
 
   // Animated pan & zoom
   const scale = useRef(new Animated.Value(1)).current;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastScale = useRef(1);
   const lastPan = useRef({ x: 0, y: 0 });
+
+  // baseScaleRef holds the current base (fitted) scale. Gesture (pinch) uses
+  // `scale` as a temporary multiplier which is reset to 1 after the gesture ends.
+  // We initialize it to 1 and set it to fitScale when the layout first computes.
+  const baseScaleRef = useRef(1);
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +54,13 @@ const ParkingAssignmentPage = () => {
         const data = layoutResp?.data || layoutResp;
         if (!mounted) return;
         setLayout(data);
+
+        // Persist the currently viewed layout so other screens (scanner) can use it
+        try {
+          if (id) await AsyncStorage.setItem('selected_parking_layout', String(id));
+        } catch (e) {
+          console.warn('Failed to persist selected layout', e);
+        }
 
         const layoutSlots = data?.parking_slots || (data?.layout_data?.parking_slots) || [];
         // normalize slot fields
@@ -59,23 +73,61 @@ const ParkingAssignmentPage = () => {
           rotation: s.rotation ?? (s.metadata && s.metadata.rotation) ?? 0,
           space_number: s.space_number ?? (s.metadata && s.metadata.name) ?? `#${s.id}`,
           space_type: s.space_type ?? (s.metadata && s.metadata.type) ?? 'standard',
-          space_status: s.space_status ?? (s.metadata && s.metadata.status) ?? 'available',
+          // treat 'completed' as available so completed assignments don't render as occupied
+          space_status: (s.space_status === 'completed' ? 'available' : (s.space_status ?? (s.metadata && s.metadata.status) ?? 'available')),
           metadata: s.metadata ?? {}
         }));
         setSlots(normalized);
 
-        // fetch assignments
+        // fetch assignments and filter out completed ones so they appear available
         let asg: any[] = [];
         try {
-          const ares = await apiFetch(`/api/parking-assignments/by-layout/${id}`);
-          asg = ares || [];
+          const ares = await apiFetch(`/api/parking-assignments/by-layout/${id}`) || [];
+          asg = (ares || []).filter((a: any) => {
+            const st = (a?.status || a?.data?.status || '').toString().toLowerCase();
+            return st !== 'completed';
+          });
         } catch (e) {
           console.warn('Failed to fetch assignments', e);
         }
         setAssignments(asg || []);
 
+        // try to detect logged-in user's assignment and highlight it
+        try {
+          const profileResp = await apiFetch('/api/profile');
+          const profile = profileResp?.data || profileResp;
+          if (profile && profile.id) {
+            // look for assignment referencing the user's id or vehicle id
+            const candidate = (asg || []).find((a: any) => {
+              const userId = a?.user_id || a?.assigned_to || a?.data?.user_id || a?.data?.assigned_to;
+              if (userId && String(userId) === String(profile.id)) return true;
+              // also try matching by vehicle ownership if profile has vehicles
+              const pvehicles = profile.vehicles || profile.my_vehicles || [];
+              if (pvehicles && pvehicles.length) {
+                for (const v of pvehicles) {
+                  const plate = (v.plate || v.vehicle_plate || '').toString().toLowerCase();
+                  const aplate = (a?.vehicle_plate || a?.data?.vehicle_plate || '').toString().toLowerCase();
+                  if (plate && aplate && plate === aplate) return true;
+                }
+              }
+              return false;
+            });
+            if (candidate) {
+              const userSlotId = candidate.parking_slot_id || candidate.slot_id || candidate.data?.parking_slot_id;
+              if (userSlotId) setHighlightSlotId(String(userSlotId));
+            }
+          }
+        } catch (e) {
+          // ignore profile fetch failures (not logged in)
+        }
+
         const { w, h } = computeCanvasSize(normalized);
         setCanvasSize({ w, h });
+        // if caller requested a highlight for a specific slot via query param, pick it
+        try {
+          const q = (params as any)?.highlightSlotId || (params as any)?.highlightslotid || null;
+          if (q) setHighlightSlotId(String(q));
+        } catch (e) {}
       } catch (e) {
         console.error('Failed to load parking assignment page', e);
       }
@@ -117,8 +169,16 @@ const ParkingAssignmentPage = () => {
   );
   const onPinchStateChange = (evt: any) => {
     if (evt.nativeEvent.oldState === State.ACTIVE) {
-      lastScale.current = lastScale.current * evt.nativeEvent.scale;
-      scale.setValue(lastScale.current);
+      // Fold the gesture multiplier into the base scale, clamp, then reset
+      // the gesture multiplier to 1 so subsequent gestures start fresh.
+      const minScale = 0.5;
+      const maxScale = 3;
+      const gestureScale = evt.nativeEvent.scale || 1;
+      let newBase = (baseScaleRef.current || 1) * gestureScale;
+      newBase = Math.max(minScale, Math.min(newBase, maxScale));
+      baseScaleRef.current = newBase;
+      try { fitScaleAnim.setValue(newBase); } catch (e) { /* ignore */ }
+      try { scale.setValue(1); } catch (e) { /* ignore */ }
     }
   };
 
@@ -141,34 +201,96 @@ const ParkingAssignmentPage = () => {
 
   function closeTooltip() { setSelectedSlot(null); }
 
+  // Edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any>(null);
+  const [editPlate, setEditPlate] = useState('');
+  const [editVehicleType, setEditVehicleType] = useState('');
+
+  function openEditForAssignment(a: any) {
+    setEditingAssignment(a);
+    setEditPlate(a?.vehicle_plate || a?.data?.vehicle_plate || '');
+    setEditVehicleType(a?.vehicle_type || a?.data?.vehicle_type || 'car');
+    setEditModalVisible(true);
+  }
+
+  async function saveEdit() {
+    if (!editingAssignment) return;
+    try {
+      const idToUpdate = editingAssignment.id || (editingAssignment.data && editingAssignment.data.id);
+      if (!idToUpdate) throw new Error('No assignment id');
+      await apiFetch(`/api/parking-assignments/${idToUpdate}`, { method: 'PUT', body: JSON.stringify({ vehicle_plate: editPlate, vehicle_type: editVehicleType }) });
+      // refresh assignments
+      const ares = await apiFetch(`/api/parking-assignments/by-layout/${id}`) || [];
+      const asg = (ares || []).filter((a: any) => { const st = (a?.status || a?.data?.status || '').toString().toLowerCase(); return st !== 'completed'; });
+      setAssignments(asg || []);
+      setEditModalVisible(false);
+    } catch (e) {
+      console.error('Failed to save assignment edit', e);
+      setEditModalVisible(false);
+    }
+  }
+
   // build assignment map
   const assignmentBySlot: Record<string, any> = {};
   assignments.forEach(a => { if (a.parking_slot_id) assignmentBySlot[String(a.parking_slot_id)] = a; });
 
-  // compute scale to fit screen width (landscape-friendly) but allow horizontal scroll
-  const padding = 20;
-  const availableW = Math.max(screenW, screenH) - 40; // prefer landscape width
-  const availableH = Math.min(screenH, screenW) - 120;
-  const fitScale = Math.min(1, Math.min(availableW / (canvasSize.w + padding), availableH / (canvasSize.h + padding)));
+  // compute scale to best fit the available window. Allow upscaling so layouts fill the screen.
+  const padding = 12;
+  const availableW = screenW - 12;
+  const availableH = screenH - 12;
+  // use 'cover' fit so the layout fills the available space (matches available_parking)
+  const fitScale = Math.max(availableW / (canvasSize.w + padding), availableH / (canvasSize.h + padding));
   const fitScaleAnim = useRef(new Animated.Value(fitScale)).current;
 
+  // pulsing animation for highlighted slot (re-used from available_parking)
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
   useEffect(() => {
-    // update fitScaleAnim when canvasSize changes
+    if (!highlightSlotId && !selectedSlot) {
+      if (pulseLoop.current) {
+        try { pulseLoop.current.stop(); } catch (e) {}
+        pulseAnim.setValue(1);
+      }
+      return;
+    }
+    pulseAnim.setValue(1);
+    pulseLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.09, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.current.start();
+    return () => { if (pulseLoop.current) try { pulseLoop.current.stop(); } catch (e) {} };
+  }, [highlightSlotId, selectedSlot]);
+
+  useEffect(() => {
+    // update fitScaleAnim when canvasSize or fitScale changes
     try { fitScaleAnim.setValue(fitScale); } catch (e) { /* ignore */ }
   }, [canvasSize.w, canvasSize.h, fitScale]);
+
+  // sync the main animated scale value and lastScale with the computed fitScale so
+  // the default view shows the same fit as other pages and we prevent zooming out past it
+  useEffect(() => {
+    try {
+      lastScale.current = fitScale;
+      scale.setValue(fitScale);
+    } catch (e) { /* ignore */ }
+  }, [fitScale]);
 
   const bgImage = layout?.background_image && typeof layout.background_image === 'string' ? layout.background_image : null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#fff', paddingTop: 12 }}>
-      <Text style={{ fontSize: 18, fontWeight: '700', marginHorizontal: 12, marginBottom: 8 }}>{layout?.name || 'Parking Layout'}</Text>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#fff', paddingTop: 6 }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', marginHorizontal: 8, marginBottom: 6 }}>{layout?.name || 'Parking Layout'}</Text>
       {loading ? <ActivityIndicator style={{ marginTop: 20 }} /> : (
         <PinchGestureHandler onGestureEvent={onPinchEvent} onHandlerStateChange={onPinchStateChange}>
           <Animated.View style={{ flex: 1 }}>
             <PanGestureHandler onGestureEvent={onPanEvent} onHandlerStateChange={onPanStateChange} minPointers={1} maxPointers={2}>
               <Animated.View style={{ flex: 1 }}>
-                <ScrollView horizontal contentContainerStyle={{ padding: 0 }} scrollEnabled={false}>
-                  <Animated.View style={{ width: canvasSize.w, height: canvasSize.h, backgroundColor: '#f8fafc', transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: Animated.multiply(scale, fitScaleAnim) }] }}>
+                <ScrollView horizontal contentContainerStyle={{ padding: 0, alignItems: 'center', justifyContent: 'center' }} style={{ flex: 1 }} scrollEnabled={false}>
+                  <Animated.View style={{ width: canvasSize.w, height: canvasSize.h, backgroundColor: '#f8fafc', transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: Animated.multiply(scale, fitScaleAnim) }], alignSelf: 'center' }}>
                     {bgImage ? (
                       <ImageBackground source={{ uri: bgImage }} style={{ width: canvasSize.w, height: canvasSize.h }} resizeMode="contain">
                         {/* render lines */}
@@ -202,7 +324,8 @@ const ParkingAssignmentPage = () => {
                           const rot = s.rotation || 0;
                           const assigned = assignmentBySlot[String(s.id)];
                           const status = assigned ? (assigned.status || 'occupied') : (s.space_status || 'available');
-                          const fill = s.metadata?.fill || (status === 'occupied' ? '#b91c1c' : status === 'reserved' ? '#b45309' : '#047857');
+                          // default available color changed to pink for quick verification
+                          const fill = s.metadata?.fill || (status === 'occupied' ? '#b91c1c' : status === 'reserved' ? '#b45309' : '#ff69b4');
                           const textColor = s.metadata?.textColor || '#ffffff';
                           const vehicleType = assigned?.vehicle_type || s.space_type || 'car';
                           const icon = assigned ? (vehicleType.toLowerCase().includes('motor') ? '🏍️' : '🚗') : '';
@@ -223,6 +346,9 @@ const ParkingAssignmentPage = () => {
                                 <Text>Plate: {assignmentBySlot[String(selectedSlot.id)].vehicle_plate || '—'}</Text>
                                 <Text>Type: {assignmentBySlot[String(selectedSlot.id)].vehicle_type || '—'}</Text>
                                 <Text>Status: {assignmentBySlot[String(selectedSlot.id)].status || '—'}</Text>
+                                <Pressable onPress={() => openEditForAssignment(assignmentBySlot[String(selectedSlot.id)])} style={{ marginTop: 8, padding: 6, backgroundColor: '#0369a1', borderRadius: 6 }}>
+                                  <Text style={{ color: '#fff' }}>Edit</Text>
+                                </Pressable>
                               </View>
                             ) : (
                               <Text>Available</Text>
@@ -263,15 +389,26 @@ const ParkingAssignmentPage = () => {
                           const rot = s.rotation || 0;
                           const assigned = assignmentBySlot[String(s.id)];
                           const status = assigned ? (assigned.status || 'occupied') : (s.space_status || 'available');
+                          // color: occupied(red), reserved(orange), available(green)
                           const fill = s.metadata?.fill || (status === 'occupied' ? '#b91c1c' : status === 'reserved' ? '#b45309' : '#047857');
                           const textColor = s.metadata?.textColor || '#ffffff';
                           const vehicleType = assigned?.vehicle_type || s.space_type || 'car';
                           const icon = assigned ? (vehicleType.toLowerCase().includes('motor') ? '🏍️' : '🚗') : '';
+                          const isHighlighted = String(s.id) === String(highlightSlotId) || (selectedSlot && String(s.id) === String(selectedSlot.id));
+                          const isUserSlot = String(s.id) === String(highlightSlotId);
+                          const SlotComponent: any = isHighlighted ? Animated.createAnimatedComponent(Pressable) : Pressable;
+                          const transformArray: any[] = [{ rotate: `${rot}deg` }];
+                          if (isHighlighted) transformArray.push({ scale: pulseAnim });
                           return (
-                            <Pressable key={`slot-${s.id}`} onPress={() => handleSlotPress(s)} style={[styles.slot, { left, top, width: w, height: h, backgroundColor: fill, transform: [{ rotate: `${rot}deg` }] }] }>
+                            <SlotComponent key={`slot-${s.id}`} onPress={() => handleSlotPress(s)} style={[styles.slot, { left, top, width: w, height: h, backgroundColor: fill, transform: transformArray }, isHighlighted ? styles.highlightedSlot : {}] }>
                               <Text style={{ color: textColor, fontWeight: '700' }}>{s.space_number}</Text>
                               {icon ? <Text style={{ fontSize: 18 }}>{icon}</Text> : null}
-                            </Pressable>
+                              {assigned ? (
+                                <View style={styles.assignedBadge} pointerEvents="none">
+                                  <Text style={styles.assignedBadgeText}>{isUserSlot ? 'YOU' : 'A'}</Text>
+                                </View>
+                              ) : null}
+                            </SlotComponent>
                           );
                         })}
 
@@ -299,8 +436,25 @@ const ParkingAssignmentPage = () => {
           </Animated.View>
         </PinchGestureHandler>
       )}
+      {/* Edit assignment modal */}
+      <Modal visible={editModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditModalVisible(false)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <View style={{ width: '90%', backgroundColor: '#fff', padding: 16, borderRadius: 8 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 8 }}>Edit Assignment</Text>
+            <Text style={{ fontSize: 12, color: '#333' }}>Vehicle Plate</Text>
+            <TextInput value={editPlate} onChangeText={setEditPlate} style={{ borderWidth: 1, borderColor: '#ddd', padding: 8, marginBottom: 8, borderRadius: 4 }} />
+            <Text style={{ fontSize: 12, color: '#333' }}>Vehicle Type</Text>
+            <TextInput value={editVehicleType} onChangeText={setEditVehicleType} style={{ borderWidth: 1, borderColor: '#ddd', padding: 8, marginBottom: 8, borderRadius: 4 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <Button title="Cancel" onPress={() => setEditModalVisible(false)} />
+              <View style={{ width: 8 }} />
+              <Button title="Save" onPress={saveEdit} />
+            </View>
+          </View>
+        </View>
+      </Modal>
       <View style={{ padding: 12 }}>
-        <Text style={{ color: '#666', fontSize: 12 }}>Tip: rotate device to landscape or expand screen for best results.</Text>
+        <Text style={{ color: '#666', fontSize: 12 }}>Tipsidy: rotate device to landscape or expand screen for best results.</Text>
       </View>
     </GestureHandlerRootView>
   );
@@ -334,6 +488,30 @@ const styles = StyleSheet.create({
   },
   textWrap: {
     position: 'absolute'
+  }
+  ,
+  highlightedSlot: {
+    borderWidth: 3,
+    borderColor: '#FFD54F',
+    shadowColor: '#FFD54F',
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 8
+  },
+  assignedBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#fff',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    elevation: 6,
+  },
+  assignedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#b91c1c'
   }
 });
 

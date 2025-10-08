@@ -20,29 +20,21 @@ export default function UploadIdScreen() {
   const router = useRouter();
 
 
-  useEffect(() => {
-    (async () => {
-      // ask for camera permission
-      const { status: camStatus } =
-        await ImagePicker.requestCameraPermissionsAsync();
-      setHasCameraPermission(camStatus === 'granted');
-      if (camStatus !== 'granted') {
-        Alert.alert(
-          'Permission needed',
-          'We need camera access to take your photo.'
-        );
-      }
-    })();
-  }, []);
+  // Do not request camera permission on mount to avoid creating promises during
+  // render that can suspend Client Components. Request permission when the
+  // user taps the camera button instead.
 
   // open camera
   const openCamera = async () => {
     if (!hasCameraPermission) {
-      Alert.alert(
-        'No camera access',
-        'Please allow camera permissions in settings.'
-      );
-      return;
+      // Request permission on-demand
+      const { status: camStatus } = await ImagePicker.requestCameraPermissionsAsync();
+      const granted = camStatus === 'granted';
+      setHasCameraPermission(granted);
+      if (!granted) {
+        Alert.alert('No camera access', 'Please allow camera permissions in settings.');
+        return;
+      }
     }
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,

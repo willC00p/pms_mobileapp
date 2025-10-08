@@ -1,4 +1,19 @@
-import { Stack } from "expo-router";
+// Import the router. Depending on bundler/module config, expo-router may expose
+// Stack as the default export or as a named property. Resolve at runtime and
+// cast to `any` so `.Screen` access won't crash.
+import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
+// Ensure Ionicons font is loaded early so tab icons don't render as placeholders.
+try {
+  // loadFont may be undefined in some environments; call if present.
+  // react-native-vector-icons exposes loadFont on the default import
+  if ((Ionicons as any).loadFont) {
+    (Ionicons as any).loadFont();
+  }
+} catch (e) {
+  // ignore in environments where font loading is unnecessary
+}
 import './globals.css';
 
 // Debug webhook logger: captures console logs and uncaught JS errors and POSTs them to webhook.site
@@ -63,7 +78,7 @@ export default function RootLayout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="available-parking/[id]"
+        name="available_parking/[id]"
         options={{ headerShown: false }}
       />
       <Stack.Screen

@@ -13,16 +13,17 @@ const Profile = () => {
     (async () => {
       try {
         setLoading(true);
-        // Prefer authenticated settings/profile endpoint
-        const res = await apiFetch('/settings/profile');
+        // Prefer authenticated settings/profile endpoint. Backend wraps payload in { data }
+        const res = await apiFetch('/api/settings/profile');
         if (!mounted) return;
-        setUser(res);
+        // Unwrap common API wrapper: use `data` when present
+        setUser(res?.data ?? res);
       } catch (err) {
         // If auth failed, try the generic /user endpoint
         try {
-          const u = await apiFetch('/user');
+          const u = await apiFetch('/api/user');
           if (!mounted) return;
-          setUser(u);
+          setUser(u?.data ?? u);
         } catch (e) {
           // show a friendly error
           Alert.alert('Profile', 'Unable to load profile. Please sign in.');
@@ -34,9 +35,11 @@ const Profile = () => {
     return () => { mounted = false; };
   }, []);
 
-  const name = user?.name || (user?.user_detail?.firstname ? `${user.user_detail.firstname} ${user.user_detail.lastname}` : '');
-  const role = user?.role?.name || 'Student';
-  const ud = user?.userDetail || user?.user_detail || {};
+  // Normalize shape: some API responses return { user, userDetail } inside the data payload.
+  const userObj = user?.user ? user.user : user;
+  const name = userObj?.name || (userObj?.user_detail?.firstname ? `${userObj.user_detail.firstname} ${userObj.user_detail.lastname}` : (user?.user_detail?.firstname ? `${user.user_detail.firstname} ${user.user_detail.lastname}` : ''));
+  const role = userObj?.role?.name || (user?.role?.name) || 'Student';
+  const ud = userObj?.userDetail || userObj?.user_detail || user?.user_detail || {};
 
   if (loading) {
     return (
@@ -59,8 +62,8 @@ const Profile = () => {
           <View className="h-auto w-full bg-F5F4F4 rounded-lg p-4 space-y-12" style={{ height: '100%' }}>
             {/* Profile Image and Info */}
             <View className="items-center space-y-3">
-              {ud?.profile_pic ? (
-                <Image source={{ uri: ud.profile_pic }} style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff' }} />
+              {(ud?.profile_pic || userObj?.profile_pic || user?.profile_pic) ? (
+                <Image source={{ uri: ud.profile_pic || userObj?.profile_pic || user?.profile_pic }} style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff' }} />
               ) : (
                 <Image source={require('../../assets/images/bulsu-logo.png')} style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff' }} />
               )}
@@ -71,9 +74,9 @@ const Profile = () => {
             {/* Input Fields */}
             <View style={{ marginTop: 32 }}>
               <TextInput style={inputStyle} value={ud?.student_no || ud?.id_number || ''} editable={false} />
-              <TextInput style={inputStyle} value={ud?.contact_number || user?.contact_number || ''} editable={false} />
+              <TextInput style={inputStyle} value={ud?.contact_number || userObj?.contact_number || user?.contact_number || ''} editable={false} />
               <TextInput style={inputStyle} value={ud?.department || ''} editable={false} />
-              <TextInput style={inputStyle} value={user?.vehicles?.[0]?.vehicle_type || ud?.vehicle_type || ''} editable={false} />
+              <TextInput style={inputStyle} value={userObj?.vehicles?.[0]?.vehicle_type || user?.vehicles?.[0]?.vehicle_type || ud?.vehicle_type || ''} editable={false} />
             </View>
 
             {/* Action Buttons */}

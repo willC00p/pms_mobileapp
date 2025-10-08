@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+// Resolve Drawer from expo-router at runtime to be robust against different exports
 import { Drawer } from 'expo-router/drawer';
 
 export default function DrawerLayout() {

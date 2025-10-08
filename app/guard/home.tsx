@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { Header, Card, PrimaryButton } from '../components/ui';
 import { apiFetch } from '../_lib/api';
 import { useRouter } from 'expo-router';
 
@@ -31,11 +32,10 @@ export default function GuardHome() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerBackground} />
-      <Text style={styles.title}>Guard — Available Parkings</Text>
+      <Header title="Guard — Available Parkings" />
 
-      <View style={styles.searchWrap}>
-        <TextInput placeholder="Search layouts..." value={query} onChangeText={setQuery} style={styles.searchInput} />
+      <View style={{ padding: 12 }}>
+        <TextInput placeholder="Search layouts..." value={query} onChangeText={setQuery} style={{ backgroundColor: '#fff', padding: 10, borderRadius: 8 }} />
       </View>
 
       {loading ? (
@@ -43,20 +43,22 @@ export default function GuardHome() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
           {filtered.map((layout: any) => (
-            <TouchableOpacity key={layout.id} style={styles.card} onPress={() => router.push({ pathname: '/parking-assignment/[id]', params: { id: String(layout.id) } } as any)}>
-              <View style={styles.cardRow}>
-                <Text style={styles.cardTitle}>{layout.name || 'Unnamed'}</Text>
-                <Text style={styles.cardMeta}>{(layout.parking_slots || []).length} slots</Text>
+            <Card key={layout.id} style={{ padding: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: '700' }}>{layout.name}</Text>
+                  <Text style={{ color: '#6B7280' }}>{layout.occupied}/{layout.total} occupied</Text>
+                </View>
+                <PrimaryButton title="Open" onPress={() => router.push({ pathname: '/parking-assignment/[id]', params: { id: String(layout.id) } } as any)} />
               </View>
-            </TouchableOpacity>
+            </Card>
           ))}
         </ScrollView>
       )}
 
-      {/* Floating action to open scanner (navigates to guard/scan tab) */}
-      <TouchableOpacity style={styles.scanButton} onPress={() => router.push('/guard/scan')}>
-        <Text style={styles.scanButtonText}>Open Scanner</Text>
-      </TouchableOpacity>
+      <View style={{ position: 'absolute', right: 20, bottom: 24 }}>
+        <PrimaryButton title="Open Scanner" onPress={() => router.push('/guard/scan')} />
+      </View>
     </View>
   );
 }

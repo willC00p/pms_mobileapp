@@ -23,7 +23,7 @@ export default function DetailsVehicle() {
     // plate validation: require at least 2 chars and alnum/hyphen
     const plate = (cur.plate_number || '').trim();
     if (!plate || !/^[A-Z0-9\- ]{2,15}$/i.test(plate)) errs.push('Plate number is invalid or missing');
-    if (cur.role === 'student') {
+    if (String(cur.role) === '3') {
       if (!cur.student_no || !cur.student_no.trim()) errs.push('Student number is required');
       if (!cur.course || !cur.course.trim()) errs.push('Course is required');
       if (!cur.department || !cur.department.trim()) errs.push('Department is required');
@@ -55,7 +55,7 @@ export default function DetailsVehicle() {
         <TextInput defaultValue={s.lastname} onChangeText={(t) => setSignup({ lastname: t })} className="border p-2 rounded mt-1" />
 
         {/* role-specific fields */}
-        {s.role === 'student' && (
+        {String(s.role) === '3' && (
           <>
             <Text className="mt-3">Student No.</Text>
             <TextInput defaultValue={s.student_no} onChangeText={(t) => setSignup({ student_no: t })} className="border p-2 rounded mt-1" />
@@ -70,10 +70,17 @@ export default function DetailsVehicle() {
             <TextInput defaultValue={s.yr_section} onChangeText={(t) => setSignup({ yr_section: t })} className="border p-2 rounded mt-1" />
           </>
         )}
-        {s.role === 'staff' && (
+        {String(s.role) === '4' && (
           <>
             <Text className="mt-3">Faculty ID</Text>
             <TextInput defaultValue={s.faculty_id} onChangeText={(t) => setSignup({ faculty_id: t })} className="border p-2 rounded mt-1" />
+            <Text className="mt-3">Position</Text>
+            <TextInput defaultValue={s.position} onChangeText={(t) => setSignup({ position: t })} className="border p-2 rounded mt-1" />
+          </>
+        )}
+
+        {String(s.role) === '5' && (
+          <>
             <Text className="mt-3">Employee ID</Text>
             <TextInput defaultValue={s.employee_id} onChangeText={(t) => setSignup({ employee_id: t })} className="border p-2 rounded mt-1" />
             <Text className="mt-3">Position</Text>
